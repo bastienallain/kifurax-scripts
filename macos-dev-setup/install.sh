@@ -322,27 +322,12 @@ mise_install() {
 
 # -- profiles -----------------------------------------------------------------
 
-# Set a global default only for tools that have none: a rerun must not
-# replace a node@22 the user pinned with node@lts.
-mise_global_default() {
-  local tool="$1" version="$2"
-  if [ -n "$MISE_BIN" ] && [ -n "$("$MISE_BIN" ls --global "$tool" 2>/dev/null)" ]; then
-    note "$tool already has a global version, kept: $("$MISE_BIN" ls --global "$tool" 2>/dev/null | awk '{print $2}' | head -n 1)"
-    return 1
-  fi
-  run mise use --global "$tool@$version" || die "mise use --global $tool@$version failed."
-}
-
+# node on LTS, everything else on latest: rerunning the script moves the
+# global defaults back there. Projects pin their own versions in mise.toml.
 profile_js() {
   step "Profile js: bun + node LTS"
-  local added=""
-  if mise_global_default node lts; then added="node (LTS)"; fi
-  if mise_global_default bun latest; then added="${added:+$added and }bun"; fi
-  if [ -n "$added" ]; then
-    done_step "$added, global defaults in ~/.config/mise/config.toml"
-  else
-    skipped_step "node and bun (global versions present, kept)"
-  fi
+  run mise use --global node@lts bun@latest || die "mise use --global node@lts bun@latest failed."
+  done_step "node (LTS) and bun (latest), global defaults in ~/.config/mise/config.toml"
 }
 
 profile_python() {
@@ -361,7 +346,7 @@ profile_ai() {
   if brew_install tmux; then done_step "tmux (for d3k --with-agent split screen)"; else skipped_step "tmux (present)"; fi
   if ! has_profile js && ! command -v bun >/dev/null 2>&1; then
     note "d3k installs with bun: adding bun through mise"
-    mise_global_default bun latest || true
+    run mise use --global bun@latest || die "mise use --global bun@latest failed."
   fi
   if command -v d3k >/dev/null 2>&1; then
     note "already installed: d3k $(d3k --version 2>/dev/null)"; skipped_step "d3k (present, update with: d3k upgrade)"

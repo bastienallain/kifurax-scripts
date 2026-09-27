@@ -35,9 +35,9 @@ first change keeps a copy as `<rc file>.kifurax.bak`, and a symlinked rc file
 (stow, chezmoi, a dotfiles repo) stays a symlink. Skip it with `--no-shell` if
 your shell already does this.
 
-Running it again never overrides your choices: a global node or bun version
-you already set in mise is kept, and a mise installed with Homebrew is the one
-the shell block activates.
+Global defaults are always node on LTS and bun on latest: running the script
+again sets them back there. Projects pin their own versions in `mise.toml`. A
+mise installed with Homebrew is the one the shell block activates.
 
 ## Options
 

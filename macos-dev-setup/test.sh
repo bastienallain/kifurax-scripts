@@ -84,16 +84,8 @@ out=$(PATH="$stubs:$PATH" in_script 'DRY_RUN=0; if brew_install tmux; then echo 
 check "failed brew install stops the run" grep -q "brew install tmux failed" <<<"$out"
 check "failed brew install is not reported as present" eval '! grep -q present <<<"$out"'
 
-cat > "$SANDBOX/fake-mise" <<'EOF'
-#!/bin/bash
-[ "$1" = "ls" ] && [ "$3" = "node" ] && echo "node  22.1.0  ~/.config/mise/config.toml  22"
-exit 0
-EOF
-chmod +x "$SANDBOX/fake-mise"
-out=$(in_script "DRY_RUN=1; MISE_BIN='$SANDBOX/fake-mise'; mise_global_default node lts; echo rc=\$?; mise_global_default bun latest; echo rc=\$?")
-check "existing global node pin is kept" grep -q "rc=1" <<<"$out"
-check "missing global bun is set" grep -q 'mise use --global bun@latest' <<<"$out"
-check "kept pin is never overwritten" eval '! grep -q "mise use --global node@lts" <<<"$out"'
+out=$(in_script "DRY_RUN=1; profile_js")
+check "js profile sets node lts and bun latest" grep -q 'mise use --global node@lts bun@latest' <<<"$out"
 
 out=$(in_script "DRY_RUN=1; NO_SHELL=0; BREW_PREFIX=/opt/homebrew; PROFILES=js; MISE_BIN=/opt/homebrew/bin/mise; login_shell() { echo zsh; }; shell_integration")
 check "shell block uses the mise that exists" grep -q '/opt/homebrew/bin/mise activate zsh' <<<"$out"
