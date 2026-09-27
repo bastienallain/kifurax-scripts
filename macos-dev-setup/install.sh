@@ -91,11 +91,6 @@ preflight() {
   [ "$(uname -s)" = "Darwin" ] || die "this script is for macOS only."
   [ "$(id -u)" -ne 0 ] || die "run it as your own user, not with sudo: Homebrew refuses root, and mise and uv would land in root's home."
   ARCH=$(uname -m)
-  # A Terminal opened with Rosetta reports x86_64 on Apple Silicon, which would
-  # put Homebrew in /usr/local and every tool in the Intel build.
-  if [ "$(sysctl -n sysctl.proc_translated 2>/dev/null || echo 0)" = "1" ]; then
-    die "this shell runs under Rosetta. Open Terminal without 'Open using Rosetta' and run again."
-  fi
   if [ "$ARCH" = "arm64" ]; then BREW_PREFIX="/opt/homebrew"; else BREW_PREFIX="/usr/local"; fi
   if [ ! -x "$BREW_PREFIX/bin/brew" ]; then
     case " $(id -Gn) " in *" admin "*) ;; *) die "installing Homebrew needs an admin account; $(id -un) is not in the admin group." ;; esac

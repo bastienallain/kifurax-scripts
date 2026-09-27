@@ -67,5 +67,4 @@ the script falls back to plain numbered prompts.
 
 macOS on Apple Silicon or Intel, the `bash` 3.2 that ships with it, and an
 admin account (Homebrew asks for your password once). Run it as yourself, not
-with `sudo`, and from a native Terminal, not one opened with Rosetta: the
-script stops early in both cases.
+with `sudo`: the script stops early otherwise.
