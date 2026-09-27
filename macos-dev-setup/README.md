@@ -28,9 +28,16 @@ Then the profiles you pick:
 | `services` | PostgreSQL 18 + pgvector, colima + Docker CLI and Compose, cloudflared | Installed, never started. `brew services start postgresql@18`, `colima start`, `cloudflared tunnel --url http://localhost:4321` when a project needs them |
 
 Last, a marked block in your shell's rc file loads Homebrew, `~/.local/bin`
-and mise (fish, zsh or bash, from your login shell). Running the script
-again rewrites that block in place instead of adding a second one. Skip it
-with `--no-shell` if your shell already does this.
+and mise (fish, zsh or bash, from your login shell), plus `~/.bun/bin` where
+d3k lives. Running the script again rewrites that block in place instead of
+adding a second one, and leaves the file untouched when nothing changed. The
+first change keeps a copy as `<rc file>.kifurax.bak`, and a symlinked rc file
+(stow, chezmoi, a dotfiles repo) stays a symlink. Skip it with `--no-shell` if
+your shell already does this.
+
+Running it again never overrides your choices: a global node or bun version
+you already set in mise is kept, and a mise installed with Homebrew is the one
+the shell block activates.
 
 ## Options
 
@@ -50,7 +57,15 @@ against the release's `checksums.txt` with `shasum -a 256`, deleted on exit.
 It is never installed. If the download or the check fails, or with `--yes`,
 the script falls back to plain numbered prompts.
 
+## Tests
+
+```sh
+./test.sh    # dry run, rc file handling, failure paths; runs in CI on macOS
+```
+
 ## Requirements
 
 macOS on Apple Silicon or Intel, the `bash` 3.2 that ships with it, and an
-admin account (Homebrew asks for your password once).
+admin account (Homebrew asks for your password once). Run it as yourself, not
+with `sudo`, and from a native Terminal, not one opened with Rosetta: the
+script stops early in both cases.
