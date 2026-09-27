@@ -1,0 +1,22 @@
+name: ci
+
+on:
+  push:
+  pull_request:
+
+permissions:
+  contents: read
+
+jobs:
+  macos-dev-setup:
+    runs-on: macos-latest
+    steps:
+      - uses: actions/checkout@v4
+      - name: shellcheck
+        run: |
+          brew install shellcheck
+          shellcheck --severity=warning macos-dev-setup/install.sh
+      - name: bash 3.2 syntax
+        run: /bin/bash -n macos-dev-setup/install.sh
+      - name: dry run, every profile
+        run: /bin/bash macos-dev-setup/install.sh --dry-run --yes --profiles=js,python,ai,services
