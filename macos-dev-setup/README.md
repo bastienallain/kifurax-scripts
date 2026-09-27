@@ -12,7 +12,20 @@ for the runtimes projects pin, **uv** for Python projects.
 
 ## What it installs
 
-Always (the base), each step skipped when already there:
+First a scan lists what is already on the machine. Then the steps run, numbered
+(`[3/8] mise`). A tool that is already there is skipped unless you answer `y`
+to its `[y/N]` question:
+
+| Already installed | `y` does |
+|---|---|
+| Xcode Command Line Tools | Never asked: always kept |
+| Homebrew | `brew update` (a reinstall would drop every formula) |
+| mise | Its installer again, or `brew reinstall mise` if Homebrew owns it |
+| node, bun | `mise install --force node@lts bun@latest` |
+| uv, d3k | Their installer again |
+| Homebrew formulae | `brew reinstall` |
+
+Always (the base):
 
 1. Apple's Command Line Tools (`xcode-select --install`)
 2. Homebrew, with its official installer
@@ -47,6 +60,7 @@ mise installed with Homebrew is the one the shell block activates.
 | `--yes` | No questions; all profiles unless `--profiles` is given |
 | `--profiles=js,python,ai,services` | Choose profiles without the menu |
 | `--no-shell` | Leave rc files alone |
+| `--reinstall` | Answer `y` to every "already installed" question (with `--yes`, those default to `N`) |
 | `--help` | Usage |
 
 ## The menu

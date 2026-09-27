@@ -9,6 +9,8 @@
 #                                 no questions, the listed profiles only
 #   ./install.sh --no-shell       leave your shell rc files alone (you already
 #                                 load Homebrew, ~/.local/bin and mise)
+#   ./install.sh --reinstall      reinstall what is already there, no questions
+#                                 (Homebrew: brew update; Xcode CLT: kept)
 #
 # Profiles (the base always runs: Xcode Command Line Tools, Homebrew, mise):
 #   js        bun and node (LTS) through mise
@@ -17,7 +19,9 @@
 #   services  PostgreSQL 18 + pgvector, colima + Docker CLI, cloudflared
 #             (installed, never started at boot)
 #
-# Safe to run again: every step checks what is already there first.
+# Safe to run again: a scan lists what is already there, and each installed
+# tool is skipped unless you answer y to [y/N] (reinstall; for Homebrew,
+# brew update). The Xcode Command Line Tools are never reinstalled.
 # Written for the bash 3.2 that ships with macOS, so it runs on a new Mac.
 
 set -eu -o pipefail
@@ -25,6 +29,7 @@ set -eu -o pipefail
 DRY_RUN=0
 ASSUME_YES=0
 NO_SHELL=0
+REINSTALL=0
 PROFILES=""
 KNOWN_PROFILES="js python ai services"
 GUM=""
@@ -36,6 +41,10 @@ DONE_STEPS=""
 SKIPPED_STEPS=""
 MISE_BIN=""
 BUN_GLOBAL_BIN="$HOME/.bun/bin"
+BREW_FORMULAE=""
+SERVICES_FORMULAE="postgresql@18 pgvector colima docker docker-compose cloudflared"
+STEP_NO=0
+STEP_TOTAL=0
 
 # -- output -------------------------------------------------------------------
 
@@ -44,7 +53,11 @@ if [ -t 1 ]; then
   bold=$(printf '\033[1m'); dim=$(printf '\033[2m'); coral=$(printf '\033[38;2;255;99;99m'); reset=$(printf '\033[0m')
 fi
 say()  { printf '%s\n' "$*"; }
-step() { printf '\n%s==>%s %s%s%s\n' "$coral" "$reset" "$bold" "$*" "$reset"; }
+header() { printf '\n%s==>%s %s%s%s\n' "$coral" "$reset" "$bold" "$*" "$reset"; }
+step() {
+  STEP_NO=$((STEP_NO + 1))
+  printf '\n%s[%d/%d]%s %s%s%s\n' "$coral" "$STEP_NO" "$STEP_TOTAL" "$reset" "$bold" "$*" "$reset"
+}
 note() { printf '%s    %s%s\n' "$dim" "$*" "$reset"; }
 die()  { printf '%serror:%s %s\n' "$coral" "$reset" "$*" >&2; exit 1; }
 done_step()    { DONE_STEPS="${DONE_STEPS}  - $*
@@ -61,7 +74,8 @@ run() {
 }
 
 usage() {
-  sed -n '2,21p' "${BASH_SOURCE[0]}" | sed 's/^# \{0,1\}//'
+  # The header comment, up to the first line that is not one.
+  awk 'NR == 1 { next } /^#/ { sub(/^# ?/, ""); print; next } { exit }' "${BASH_SOURCE[0]}"
   exit 0
 }
 
@@ -74,6 +88,7 @@ parse_args() {
       --dry-run) DRY_RUN=1 ;;
       --yes|-y) ASSUME_YES=1 ;;
       --no-shell) NO_SHELL=1 ;;
+      --reinstall) REINSTALL=1 ;;
       --profiles=*) PROFILES=$(printf '%s' "${arg#--profiles=}" | tr ',' ' ') ;;
       --help|-h) usage ;;
       *) die "unknown option: $arg (see --help)" ;;
@@ -95,6 +110,9 @@ preflight() {
   if [ ! -x "$BREW_PREFIX/bin/brew" ]; then
     case " $(id -Gn) " in *" admin "*) ;; *) die "installing Homebrew needs an admin account; $(id -un) is not in the admin group." ;; esac
   fi
+  # Tools from the official installers, mise shims and bun globals, callable
+  # for this run even before a new terminal loads the shell block.
+  export PATH="$HOME/.local/bin:$HOME/.local/share/mise/shims:$BUN_GLOBAL_BIN:$PATH"
 }
 
 # -- gum, downloaded for this run only ----------------------------------------
@@ -120,19 +138,38 @@ fetch_gum() {
   GUM=$(find "$TMP_DIR" -type f -name gum -perm -u+x | head -n 1) || GUM=""
 }
 
-# 0 yes, 1 no. Ctrl-C or Esc in gum aborts the whole run instead of reading as "no".
+# confirm QUESTION DEFAULT: 0 yes, 1 no; DEFAULT (yes|no) is what Enter picks.
+# --yes answers yes. Ctrl-C or Esc in gum aborts the run instead of reading
+# as "no"; any other gum failure falls back to the plain prompt.
 confirm() {
+  local question="$1" default="${2:-yes}" status=0 hint answer
   [ "$ASSUME_YES" -eq 1 ] && return 0
   if [ -n "$GUM" ]; then
-    local status=0
-    "$GUM" confirm "$1" || status=$?
-    [ "$status" -le 1 ] || die "cancelled."
-    return "$status"
-  else
-    printf '%s [y/N] ' "$1"
-    read -r answer </dev/tty || return 1
-    case "$answer" in y|Y|yes|YES) return 0 ;; *) return 1 ;; esac
+    if [ "$default" = "yes" ]; then "$GUM" confirm --default=true "$question" || status=$?
+    else "$GUM" confirm --default=false "$question" || status=$?
+    fi
+    case "$status" in
+      0|1) return "$status" ;;
+      130) die "cancelled." ;;
+    esac
   fi
+  if [ "$default" = "yes" ]; then hint="[Y/n]"; else hint="[y/N]"; fi
+  printf '%s %s ' "$question" "$hint"
+  read -r answer </dev/tty || answer=""
+  case "$answer" in
+    y|Y|yes|YES) return 0 ;;
+    n|N|no|NO) return 1 ;;
+    "") [ "$default" = "yes" ] ;;
+    *) return 1 ;;
+  esac
+}
+
+# For a tool that is already there: N unless the user says y. --reinstall
+# answers y, --yes alone keeps the default (skip).
+ask_reinstall() {
+  [ "$REINSTALL" -eq 1 ] && return 0
+  [ "$ASSUME_YES" -eq 1 ] && return 1
+  confirm "$1" no
 }
 
 choose_profiles() {
@@ -237,50 +274,25 @@ export PATH=\"\$HOME/.bun/bin:\$PATH\"}"
   done_step "shell integration for $sh (open a new terminal to use it)"
 }
 
-# -- base ---------------------------------------------------------------------
+# -- scan ---------------------------------------------------------------------
+# What is already on the machine, checked once before anything runs. Every
+# step reuses these checks: present means skipped unless you answer y.
 
-xcode_clt() {
-  step "Xcode Command Line Tools"
-  if xcode-select -p >/dev/null 2>&1; then
-    note "already installed: $(xcode-select -p)"; skipped_step "Xcode CLT (present)"; return 0
-  fi
-  confirm "Install Apple's Command Line Tools (compilers, git)?" || die "Homebrew needs the Command Line Tools."
-  run xcode-select --install
-  [ "$DRY_RUN" -eq 1 ] || die "finish the Command Line Tools installer window, then run this script again."
-}
+has_xcode() { xcode-select -p >/dev/null 2>&1; }
+has_brew()  { [ -x "$BREW_PREFIX/bin/brew" ]; }
+has_uv()    { command -v uv >/dev/null 2>&1; }
+has_d3k()   { command -v d3k >/dev/null 2>&1; }
 
-homebrew() {
-  step "Homebrew"
-  if [ -x "$BREW_PREFIX/bin/brew" ]; then
-    note "already installed: $("$BREW_PREFIX/bin/brew" --version 2>/dev/null | head -n 1)"; skipped_step "Homebrew (present)"
-  else
-    confirm "Install Homebrew with its official installer (asks for your password)?" || die "the rest needs Homebrew."
-    if [ "$ASSUME_YES" -eq 1 ]; then
-      # The installer stops on "Press RETURN" unless NONINTERACTIVE is set,
-      # and in that mode it needs sudo already unlocked: ask once, up front.
-      run sudo -v
-      run 'NONINTERACTIVE=1 /bin/bash -c "$(curl -fsSL https://raw.githubusercontent.com/Homebrew/install/HEAD/install.sh)"'
-    else
-      run '/bin/bash -c "$(curl -fsSL https://raw.githubusercontent.com/Homebrew/install/HEAD/install.sh)"'
-    fi
-    [ "$DRY_RUN" -eq 1 ] || [ -x "$BREW_PREFIX/bin/brew" ] || die "the Homebrew installer finished but $BREW_PREFIX/bin/brew is missing."
-    done_step "Homebrew"
-  fi
-  if [ "$DRY_RUN" -eq 0 ]; then eval "$("$BREW_PREFIX/bin/brew" shellenv)"; fi
+# One `brew list` for the whole run instead of one per formula.
+load_brew_formulae() {
+  BREW_FORMULAE=""
+  if has_brew; then BREW_FORMULAE=$("$BREW_PREFIX/bin/brew" list --formula -1 2>/dev/null) || BREW_FORMULAE=""; fi
 }
-
-# Install the missing formulae. Returns 0 when it installed some, 1 when all
-# were there. A failed install stops the script: callers test this function
-# in an `if`, where set -e does not apply.
-brew_install() {
-  local missing="" f
-  for f in "$@"; do
-    if command -v brew >/dev/null 2>&1 && brew list --formula "$f" >/dev/null 2>&1; then note "$f already installed"; else missing="$missing $f"; fi
-  done
-  [ -z "$missing" ] && return 1
-  run brew install"$missing" || die "brew install$missing failed."
-  return 0
-}
+brew_has() { case "
+$BREW_FORMULAE
+" in *"
+$1
+"*) return 0 ;; *) return 1 ;; esac; }
 
 # mise can come from its installer (~/.local/bin) or from Homebrew: the shell
 # block must point at the one that exists, not assume the installer's path.
@@ -291,46 +303,175 @@ find_mise() {
   fi
 }
 
+# True when the global mise config asks for $1@$2 and that version is installed.
+mise_tool_ok() {
+  local cfg="${MISE_GLOBAL_CONFIG_FILE:-$HOME/.config/mise/config.toml}"
+  [ -n "$MISE_BIN" ] || return 1
+  [ "$("$MISE_BIN" config get -f "$cfg" "tools.$1" 2>/dev/null)" = "$2" ] || return 1
+  "$MISE_BIN" where "$1@$2" >/dev/null 2>&1
+}
+
+scan_line() {
+  if [ "$2" = "missing" ]; then
+    printf '    %-16s %s%-30s%s %s\n' "$1" "$coral" "missing" "$reset" "install"
+  else
+    printf '    %-16s %-30s %s%s%s\n' "$1" "$2" "$dim" "$3" "$reset"
+  fi
+}
+
+scan() {
+  header "Scan"
+  local f
+  if has_xcode; then scan_line "Xcode CLT" "installed" "kept"; else scan_line "Xcode CLT" missing; fi
+  if has_brew; then scan_line "Homebrew" "$("$BREW_PREFIX/bin/brew" --version 2>/dev/null | head -n 1)" "y: brew update"; else scan_line "Homebrew" missing; fi
+  if [ -n "$MISE_BIN" ]; then scan_line "mise" "$("$MISE_BIN" --version 2>/dev/null | awk '{print $1}')" "y: reinstall"; else scan_line "mise" missing; fi
+  if has_profile js; then
+    if mise_tool_ok node lts; then scan_line "node" "lts" "y: reinstall"; else scan_line "node" missing; fi
+    if mise_tool_ok bun latest; then scan_line "bun" "latest" "y: reinstall"; else scan_line "bun" missing; fi
+  fi
+  if has_profile python; then
+    if has_uv; then scan_line "uv" "$(uv --version 2>/dev/null | awk '{print $2}')" "y: reinstall"; else scan_line "uv" missing; fi
+  fi
+  if has_profile ai; then
+    if brew_has tmux; then scan_line "tmux" "installed" "y: reinstall"; else scan_line "tmux" missing; fi
+    if has_d3k; then scan_line "d3k" "$(d3k --version 2>/dev/null)" "y: reinstall"; else scan_line "d3k" missing; fi
+  fi
+  if has_profile services; then
+    for f in $SERVICES_FORMULAE; do
+      if brew_has "$f"; then scan_line "$f" "installed" "y: reinstall"; else scan_line "$f" missing; fi
+    done
+  fi
+  if [ "$REINSTALL" -eq 1 ]; then note "--reinstall: every installed tool is reinstalled (Homebrew: brew update)"; fi
+}
+
+# -- base ---------------------------------------------------------------------
+
+xcode_clt() {
+  step "Xcode Command Line Tools"
+  if has_xcode; then
+    # Reinstalling means deleting /Library/Developer/CommandLineTools as root
+    # and going through Apple's window again: never worth it from here.
+    note "already installed: $(xcode-select -p), kept"; skipped_step "Xcode CLT (present, kept)"; return 0
+  fi
+  confirm "Install Apple's Command Line Tools (compilers, git)?" yes || die "Homebrew needs the Command Line Tools."
+  run xcode-select --install
+  [ "$DRY_RUN" -eq 1 ] || die "finish the Command Line Tools installer window, then run this script again."
+}
+
+homebrew() {
+  step "Homebrew"
+  if has_brew; then
+    # Reinstalling Homebrew would drop every formula: y updates it instead.
+    note "already installed: $("$BREW_PREFIX/bin/brew" --version 2>/dev/null | head -n 1)"
+    if ask_reinstall "Homebrew is installed. Update it (brew update)?"; then
+      run "$BREW_PREFIX/bin/brew" update || die "brew update failed."
+      done_step "Homebrew updated"
+    else
+      skipped_step "Homebrew (present)"
+    fi
+  else
+    confirm "Install Homebrew with its official installer (asks for your password)?" yes || die "the rest needs Homebrew."
+    if [ "$ASSUME_YES" -eq 1 ]; then
+      # The installer stops on "Press RETURN" unless NONINTERACTIVE is set,
+      # and in that mode it needs sudo already unlocked: ask once, up front.
+      run sudo -v
+      run 'NONINTERACTIVE=1 /bin/bash -c "$(curl -fsSL https://raw.githubusercontent.com/Homebrew/install/HEAD/install.sh)"'
+    else
+      run '/bin/bash -c "$(curl -fsSL https://raw.githubusercontent.com/Homebrew/install/HEAD/install.sh)"'
+    fi
+    [ "$DRY_RUN" -eq 1 ] || has_brew || die "the Homebrew installer finished but $BREW_PREFIX/bin/brew is missing."
+    done_step "Homebrew"
+  fi
+  if has_brew; then eval "$("$BREW_PREFIX/bin/brew" shellenv)"; fi
+  load_brew_formulae
+}
+
+# Install the missing formulae; offer to reinstall the ones already there.
+brew_formulae() {
+  local label="$1" missing="" present="" f
+  shift
+  for f in "$@"; do
+    if brew_has "$f"; then present="$present $f"; else missing="$missing $f"; fi
+  done
+  if [ -n "$missing" ]; then
+    run brew install"$missing" || die "brew install$missing failed."
+    done_step "$label:$missing"
+  fi
+  if [ -n "$present" ]; then
+    note "already installed:$present"
+    if ask_reinstall "Reinstall$present?"; then
+      run brew reinstall"$present" || die "brew reinstall$present failed."
+      done_step "$label reinstalled:$present"
+    else
+      skipped_step "$label (present:$present)"
+    fi
+  fi
+}
+
 mise_install() {
   step "mise"
-  find_mise
   if [ -n "$MISE_BIN" ]; then
-    note "already installed: $("$MISE_BIN" --version 2>/dev/null) ($MISE_BIN)"; skipped_step "mise (present)"
-  else
-    confirm "Install mise with its official installer (into ~/.local/bin, outside Homebrew)?" || {
-      has_profile js && die "the js profile needs mise."
-      has_profile ai && die "the ai profile needs mise (d3k installs with bun)."
-      skipped_step "mise (declined)"; return 0
-    }
-    run 'curl -fsSL --proto "=https" https://mise.run | sh'
-    if [ "$DRY_RUN" -eq 1 ]; then
-      MISE_BIN="$HOME/.local/bin/mise"
+    note "already installed: $("$MISE_BIN" --version 2>/dev/null) ($MISE_BIN)"
+    if ask_reinstall "mise is installed. Reinstall it?"; then
+      case "$MISE_BIN" in
+        "$HOME/.local/bin/mise") run 'curl -fsSL --proto "=https" https://mise.run | sh' || die "the mise installer failed." ;;
+        "$BREW_PREFIX"/*) run brew reinstall mise || die "brew reinstall mise failed." ;;
+        *) die "mise at $MISE_BIN comes from neither its installer nor Homebrew: reinstall it the way you installed it." ;;
+      esac
+      done_step "mise reinstalled"
     else
-      find_mise
-      [ -n "$MISE_BIN" ] || die "the mise installer finished but mise is missing from ~/.local/bin."
+      skipped_step "mise (present)"
     fi
-    done_step "mise"
+    return 0
   fi
-  # Shims make the runtimes mise manages callable for the rest of this run.
-  export PATH="$HOME/.local/bin:$HOME/.local/share/mise/shims:$BUN_GLOBAL_BIN:$PATH"
+  confirm "Install mise with its official installer (into ~/.local/bin, outside Homebrew)?" yes || {
+    has_profile js && die "the js profile needs mise."
+    has_profile ai && die "the ai profile needs mise (d3k installs with bun)."
+    skipped_step "mise (declined)"; return 0
+  }
+  run 'curl -fsSL --proto "=https" https://mise.run | sh'
+  if [ "$DRY_RUN" -eq 1 ]; then
+    MISE_BIN="$HOME/.local/bin/mise"
+  else
+    find_mise
+    [ -n "$MISE_BIN" ] || die "the mise installer finished but mise is missing from ~/.local/bin."
+  fi
+  done_step "mise"
 }
 
 # -- profiles -----------------------------------------------------------------
 
-# node on LTS, everything else on latest: rerunning the script moves the
-# global defaults back there. Projects pin their own versions in mise.toml.
+# node on LTS, bun on latest, as global defaults. Projects pin their own
+# versions in mise.toml.
 profile_js() {
   step "Profile js: bun + node LTS"
+  if mise_tool_ok node lts && mise_tool_ok bun latest; then
+    note "already installed: node (lts) and bun (latest)"
+    if ask_reinstall "Reinstall node (lts) and bun (latest)?"; then
+      run mise install --force node@lts bun@latest || die "mise install --force node@lts bun@latest failed."
+      done_step "node (lts) and bun (latest) reinstalled"
+    else
+      skipped_step "node and bun (present)"
+    fi
+    return 0
+  fi
   run mise use --global node@lts bun@latest || die "mise use --global node@lts bun@latest failed."
   done_step "node (LTS) and bun (latest), global defaults in ~/.config/mise/config.toml"
 }
 
 profile_python() {
   step "Profile python: uv"
-  if command -v uv >/dev/null 2>&1; then
-    note "already installed: $(uv --version)"; skipped_step "uv (present, update with: uv self update)"; return 0
+  if has_uv; then
+    note "already installed: $(uv --version)"
+    if ask_reinstall "uv is installed. Reinstall it?"; then
+      run 'curl -LsSf --proto "=https" https://astral.sh/uv/install.sh | env UV_NO_MODIFY_PATH=1 sh' || die "the uv installer failed."
+      done_step "uv reinstalled"
+    else
+      skipped_step "uv (present)"
+    fi
+    return 0
   fi
-  confirm "Install uv with its official installer (into ~/.local/bin)?" || { skipped_step "uv (declined)"; return 0; }
+  confirm "Install uv with its official installer (into ~/.local/bin)?" yes || { skipped_step "uv (declined)"; return 0; }
   run 'curl -LsSf --proto "=https" https://astral.sh/uv/install.sh | env UV_NO_MODIFY_PATH=1 sh'
   [ "$DRY_RUN" -eq 1 ] || [ -x "$HOME/.local/bin/uv" ] || die "the uv installer finished but ~/.local/bin/uv is missing."
   done_step "uv (Python is uv's: uv python install, uv init, uv run)"
@@ -338,26 +479,29 @@ profile_python() {
 
 profile_ai() {
   step "Profile ai: d3k (dev3000) + tmux"
-  if brew_install tmux; then done_step "tmux (for d3k --with-agent split screen)"; else skipped_step "tmux (present)"; fi
+  brew_formulae "tmux" tmux
   if ! has_profile js && ! command -v bun >/dev/null 2>&1; then
     note "d3k installs with bun: adding bun through mise"
     run mise use --global bun@latest || die "mise use --global bun@latest failed."
   fi
-  if command -v d3k >/dev/null 2>&1; then
-    note "already installed: d3k $(d3k --version 2>/dev/null)"; skipped_step "d3k (present, update with: d3k upgrade)"
-  else
-    run mise exec bun -- bun add --global dev3000
-    done_step "d3k (dev3000) in ~/.bun/bin: run it in a project instead of the dev script"
+  if has_d3k; then
+    note "already installed: d3k $(d3k --version 2>/dev/null)"
+    if ask_reinstall "d3k is installed. Reinstall it?"; then
+      run mise exec bun -- bun add --global dev3000 || die "bun add --global dev3000 failed."
+      done_step "d3k reinstalled"
+    else
+      skipped_step "d3k (present)"
+    fi
+    return 0
   fi
+  run mise exec bun -- bun add --global dev3000 || die "bun add --global dev3000 failed."
+  done_step "d3k (dev3000) in ~/.bun/bin: run it in a project instead of the dev script"
 }
 
 profile_services() {
   step "Profile services: Postgres 18 + pgvector, colima + Docker, cloudflared"
-  if brew_install postgresql@18 pgvector colima docker docker-compose cloudflared; then
-    done_step "services installed, all stopped"
-  else
-    skipped_step "services (all present, all stopped)"
-  fi
+  # shellcheck disable=SC2086 # one word per formula
+  brew_formulae "services" $SERVICES_FORMULAE
   note "nothing is started. When a project needs them:"
   note "  brew services start postgresql@18    colima start    cloudflared tunnel --url http://localhost:4321"
   note "docker compose: see 'brew info docker-compose' for the one-line plugin setting"
@@ -367,7 +511,7 @@ profile_services() {
 
 next_steps() {
   local next="open a new terminal"
-  if has_profile js; then next="$next; in a project: mise use node@22 (pin a runtime)"; fi
+  if has_profile js; then next="$next; in a project: mise use node@lts (pin a runtime)"; fi
   if has_profile python; then next="$next; uv init (Python)"; fi
   if has_profile ai; then next="$next; d3k (dev server for agents)"; fi
   say "Next: $next."
@@ -384,6 +528,16 @@ main() {
   choose_profiles
   note "profiles:${PROFILES:- none}"
 
+  # Xcode CLT, Homebrew, mise, shell integration, then one step per profile.
+  local p
+  STEP_TOTAL=4
+  for p in $PROFILES; do STEP_TOTAL=$((STEP_TOTAL + 1)); done
+
+  if has_brew; then eval "$("$BREW_PREFIX/bin/brew" shellenv)"; fi
+  load_brew_formulae
+  find_mise
+  scan
+
   xcode_clt
   homebrew
   mise_install
@@ -393,7 +547,7 @@ main() {
   if has_profile services; then profile_services; fi
   shell_integration
 
-  step "Summary"
+  header "Summary"
   local done_title="Done:"
   if [ "$DRY_RUN" -eq 1 ]; then done_title="Would do:"; fi
   if [ -n "$DONE_STEPS" ]; then say "$done_title"; printf '%s' "$DONE_STEPS"; fi

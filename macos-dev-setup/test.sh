@@ -76,16 +76,70 @@ stubs="$SANDBOX/bin"
 mkdir -p "$stubs"
 cat > "$stubs/brew" <<'EOF'
 #!/bin/bash
-[ "$1" = "list" ] && exit 1
 [ "$1" = "install" ] && exit 1
+exit 0
 EOF
 chmod +x "$stubs/brew"
-out=$(PATH="$stubs:$PATH" in_script 'DRY_RUN=0; if brew_install tmux; then echo installed; else echo present; fi')
+out=$(PATH="$stubs:$PATH" in_script 'DRY_RUN=0; BREW_FORMULAE=""; brew_formulae tmux tmux; echo reached')
 check "failed brew install stops the run" grep -q "brew install tmux failed" <<<"$out"
-check "failed brew install is not reported as present" eval '! grep -q present <<<"$out"'
+check "failed brew install is not reported as done" eval '! grep -q reached <<<"$out"'
 
+out=$(in_script 'DRY_RUN=1; ASSUME_YES=1; BREW_FORMULAE="git
+tmux"; brew_formulae tmux tmux colima; printf "%s" "$DONE_STEPS$SKIPPED_STEPS"')
+check "brew_has matches a whole formula name" eval '! grep -q "brew install tmux" <<<"$out"'
+check "missing formula is installed" grep -q 'brew install colima' <<<"$out"
+check "--yes skips what is installed" grep -q 'tmux (present: tmux)' <<<"$out"
+check "--yes never reinstalls" eval '! grep -q "brew reinstall" <<<"$out"'
+
+out=$(in_script 'DRY_RUN=1; REINSTALL=1; BREW_FORMULAE="tmux"; brew_formulae tmux tmux')
+check "--reinstall reinstalls what is installed" grep -q 'brew reinstall tmux' <<<"$out"
+
+prefix="$SANDBOX/brewprefix"
+mkdir -p "$prefix/bin"
+cat > "$prefix/bin/brew" <<'EOF'
+#!/bin/bash
+[ "$1" = "--version" ] && echo "Homebrew 9.9.9"
+exit 0
+EOF
+chmod +x "$prefix/bin/brew"
+out=$(in_script "DRY_RUN=1; REINSTALL=1; BREW_PREFIX='$prefix'; homebrew")
+check "installed Homebrew is updated, not reinstalled" grep -q "$prefix/bin/brew update" <<<"$out"
+check "installed Homebrew never runs its installer" eval '! grep -q "Homebrew/install" <<<"$out"'
+out=$(in_script "DRY_RUN=1; ASSUME_YES=1; BREW_PREFIX='$prefix'; homebrew")
+check "--yes leaves Homebrew as is" eval '! grep -q "brew update" <<<"$out"'
+
+cat > "$stubs/xcode-select" <<'EOF'
+#!/bin/bash
+[ "$1" = "-p" ] && echo /Library/Developer/CommandLineTools
+exit 0
+EOF
+chmod +x "$stubs/xcode-select"
+out=$(PATH="$stubs:$PATH" in_script 'DRY_RUN=1; REINSTALL=1; xcode_clt')
+check "Xcode CLT is kept even with --reinstall" eval '! grep -q "xcode-select --install" <<<"$out"'
+
+cat > "$SANDBOX/fake-mise" <<'EOF'
+#!/bin/bash
+case "$1" in
+  config) case "$5" in tools.node) echo lts ;; tools.bun) echo latest ;; *) exit 1 ;; esac ;;
+  where) exit 0 ;;
+esac
+exit 0
+EOF
+chmod +x "$SANDBOX/fake-mise"
+out=$(in_script "DRY_RUN=1; ASSUME_YES=1; MISE_BIN='$SANDBOX/fake-mise'; profile_js")
+check "node lts and bun latest in place: skipped" eval '! grep -q "mise use" <<<"$out"'
+out=$(in_script "DRY_RUN=1; REINSTALL=1; MISE_BIN='$SANDBOX/fake-mise'; profile_js")
+check "--reinstall forces node and bun" grep -q 'mise install --force node@lts bun@latest' <<<"$out"
 out=$(in_script "DRY_RUN=1; profile_js")
 check "js profile sets node lts and bun latest" grep -q 'mise use --global node@lts bun@latest' <<<"$out"
+
+out=$(in_script 'STEP_TOTAL=2; step one; step two')
+check "steps are numbered" eval 'grep -q "\[1/2\] one" <<<"$out" && grep -q "\[2/2\] two" <<<"$out"'
+
+out=$(PATH="$stubs:$PATH" in_script "PROFILES='ai services'; BREW_PREFIX='$prefix'; BREW_FORMULAE='tmux'; scan")
+check "scan lists an installed formula" grep -q 'tmux .*installed' <<<"$out"
+check "scan lists a missing formula" grep -q 'colima .*missing' <<<"$out"
+check "scan shows Homebrew's version" grep -q 'Homebrew 9.9.9' <<<"$out"
 
 out=$(in_script "DRY_RUN=1; NO_SHELL=0; BREW_PREFIX=/opt/homebrew; PROFILES=js; MISE_BIN=/opt/homebrew/bin/mise; login_shell() { echo zsh; }; shell_integration")
 check "shell block uses the mise that exists" grep -q '/opt/homebrew/bin/mise activate zsh' <<<"$out"
