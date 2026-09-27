@@ -1,0 +1,58 @@
+<svg xmlns="http://www.w3.org/2000/svg" width="1280" height="640" viewBox="0 0 1280 640">
+<defs>
+<linearGradient id="kfx-fade" x1="0" y1="0" x2="0" y2="1"><stop offset=".42" stop-color="#07080a" stop-opacity="0"/><stop offset=".8" stop-color="#07080a" stop-opacity=".92"/><stop offset="1" stop-color="#07080a"/></linearGradient>
+<radialGradient id="kfx-vig" cx="50%" cy="35%" r="78%"><stop offset=".5" stop-color="#000" stop-opacity="0"/><stop offset="1" stop-color="#000" stop-opacity=".75"/></radialGradient>
+<filter id="kfx-noise" x="0" y="0" width="100%" height="100%"><feTurbulence type="fractalNoise" baseFrequency=".9" numOctaves="2" stitchTiles="stitch"/><feColorMatrix values="0 0 0 0 1  0 0 0 0 1  0 0 0 0 1  0 0 0 .06 0"/></filter>
+<pattern id="kfx-grain" width="256" height="256" patternUnits="userSpaceOnUse"><rect width="256" height="256" filter="url(#kfx-noise)"/></pattern>
+<filter id="kfx-soft"><feGaussianBlur stdDeviation="12"/></filter>
+<filter id="kfx-softer"><feGaussianBlur stdDeviation="4"/></filter>
+<radialGradient id="glow" cx="36%" cy="50%" r="45%"><stop offset="0" stop-color="#ff6363" stop-opacity=".12"/><stop offset="1" stop-color="#ff6363" stop-opacity="0"/></radialGradient>
+<linearGradient id="sheet" x1="0" y1="0" x2="0" y2="1"><stop offset="0" stop-color="#d3d0c7"/><stop offset="1" stop-color="#bdb9af"/></linearGradient>
+</defs>
+<rect width="1280" height="640" fill="#07080a"/><rect width="1280" height="640" fill="url(#glow)"/>
+<circle cx="506" cy="436" r="70" fill="none" stroke="#e6e6e8" stroke-opacity="0.162" stroke-width="1.1"/>
+<circle cx="506" cy="436" r="116" fill="none" stroke="#e6e6e8" stroke-opacity="0.150" stroke-width="1.1"/>
+<circle cx="506" cy="436" r="162" fill="none" stroke="#e6e6e8" stroke-opacity="0.139" stroke-width="1.1"/>
+<circle cx="506" cy="436" r="208" fill="none" stroke="#e6e6e8" stroke-opacity="0.128" stroke-width="1.1"/>
+<circle cx="506" cy="436" r="254" fill="none" stroke="#e6e6e8" stroke-opacity="0.117" stroke-width="1.1"/>
+<circle cx="506" cy="436" r="300" fill="none" stroke="#e6e6e8" stroke-opacity="0.106" stroke-width="1.1"/>
+<circle cx="506" cy="436" r="346" fill="none" stroke="#e6e6e8" stroke-opacity="0.096" stroke-width="1.1"/>
+<circle cx="506" cy="436" r="392" fill="none" stroke="#e6e6e8" stroke-opacity="0.086" stroke-width="1.1"/>
+<circle cx="506" cy="436" r="438" fill="none" stroke="#e6e6e8" stroke-opacity="0.076" stroke-width="1.1"/>
+<circle cx="506" cy="436" r="484" fill="none" stroke="#e6e6e8" stroke-opacity="0.066" stroke-width="1.1"/>
+<circle cx="506" cy="436" r="530" fill="none" stroke="#e6e6e8" stroke-opacity="0.057" stroke-width="1.1"/>
+<circle cx="506" cy="436" r="576" fill="none" stroke="#e6e6e8" stroke-opacity="0.048" stroke-width="1.1"/>
+<circle cx="506" cy="436" r="622" fill="none" stroke="#e6e6e8" stroke-opacity="0.039" stroke-width="1.1"/>
+<circle cx="506" cy="436" r="668" fill="none" stroke="#e6e6e8" stroke-opacity="0.031" stroke-width="1.1"/>
+<circle cx="506" cy="436" r="714" fill="none" stroke="#e6e6e8" stroke-opacity="0.023" stroke-width="1.1"/>
+<circle cx="506" cy="436" r="760" fill="none" stroke="#e6e6e8" stroke-opacity="0.016" stroke-width="1.1"/>
+<circle cx="506" cy="436" r="806" fill="none" stroke="#e6e6e8" stroke-opacity="0.010" stroke-width="1.1"/>
+<circle cx="506" cy="436" r="852" fill="none" stroke="#e6e6e8" stroke-opacity="0.004" stroke-width="1.1"/>
+<circle cx="506" cy="436" r="898" fill="none" stroke="#e6e6e8" stroke-opacity="0.000" stroke-width="1.1"/>
+<g transform="rotate(-2 350.0 325.0)">
+<rect x="164" y="168" width="400" height="350" rx="6" fill="#000" opacity=".55" filter="url(#kfx-soft)"/>
+<rect x="150" y="150" width="400" height="350" rx="6" fill="url(#sheet)"/>
+<text x="190" y="214" fill="#6b6861" font-family="ui-monospace, 'Geist Mono', SFMono-Regular, Menlo, Consolas, monospace" font-size="22">#!/bin/bash</text>
+<text x="190" y="290" fill="#3a3934" font-family="ui-monospace, 'Geist Mono', SFMono-Regular, Menlo, Consolas, monospace" font-size="22">brew install</text>
+<text x="190" y="328" fill="#3a3934" font-family="ui-monospace, 'Geist Mono', SFMono-Regular, Menlo, Consolas, monospace" font-size="22">mise use --global</text>
+<text x="190" y="366" fill="#3a3934" font-family="ui-monospace, 'Geist Mono', SFMono-Regular, Menlo, Consolas, monospace" font-size="22">uv python install</text>
+<text x="190" y="442" fill="#2a2925" font-family="ui-monospace, 'Geist Mono', SFMono-Regular, Menlo, Consolas, monospace" font-size="22">./install.sh --dry-run</text>
+<rect x="491.4" y="425.5" width="30.0" height="21.0" rx="3" fill="#ff6363" opacity=".35" filter="url(#kfx-softer)"/>
+<rect x="497.4" y="431.5" width="18" height="9.0" fill="#ff6363"/>
+</g>
+<text x="660" y="238" fill="#e6e6e8" font-family="ui-monospace, 'Geist Mono', SFMono-Regular, Menlo, Consolas, monospace" font-size="44" letter-spacing="2">kifurax-scripts</text>
+<text x="660" y="286" fill="#e6e6e8" fill-opacity=".6" font-family="ui-monospace, 'Geist Mono', SFMono-Regular, Menlo, Consolas, monospace" font-size="19">The scripts from the posts on kifurax.com</text>
+<line x1="660" y1="336" x2="660" y2="468" stroke="#e6e6e8" stroke-opacity=".28" stroke-width="1.2"/>
+<line x1="652" y1="336" x2="668" y2="336" stroke="#e6e6e8" stroke-opacity=".45" stroke-width="1.2"/>
+<text x="686" y="343" fill="#e6e6e8" fill-opacity=".72" font-family="ui-monospace, 'Geist Mono', SFMono-Regular, Menlo, Consolas, monospace" font-size="21">1  one script per post</text>
+<line x1="652" y1="380" x2="668" y2="380" stroke="#e6e6e8" stroke-opacity=".45" stroke-width="1.2"/>
+<text x="686" y="387" fill="#e6e6e8" fill-opacity=".72" font-family="ui-monospace, 'Geist Mono', SFMono-Regular, Menlo, Consolas, monospace" font-size="21">2  read it</text>
+<line x1="652" y1="424" x2="668" y2="424" stroke="#e6e6e8" stroke-opacity=".45" stroke-width="1.2"/>
+<text x="686" y="431" fill="#e6e6e8" fill-opacity=".72" font-family="ui-monospace, 'Geist Mono', SFMono-Regular, Menlo, Consolas, monospace" font-size="21">3  run it with --dry-run</text>
+<line x1="652" y1="468" x2="668" y2="468" stroke="#e6e6e8" stroke-opacity=".45" stroke-width="1.2"/>
+<text x="686" y="475" fill="#e6e6e8" fill-opacity=".72" font-family="ui-monospace, 'Geist Mono', SFMono-Regular, Menlo, Consolas, monospace" font-size="21">4  then for real</text>
+<path d="M56,84 V56 H84 M1196,56 H1224 V84 M56,556 V584 H84 M1196,584 H1224 V556" stroke="#e6e6e8" stroke-opacity=".32" stroke-width="1.5" fill="none"/>
+<text x="102" y="64" fill="#e6e6e8" fill-opacity=".38" font-family="ui-monospace, 'Geist Mono', SFMono-Regular, Menlo, Consolas, monospace" font-size="20" letter-spacing="4">FIG. 00  ·  SCRIPTS</text>
+<rect width="1280" height="640" fill="url(#kfx-vig)"/>
+<rect width="1280" height="640" fill="url(#kfx-grain)"/>
+</svg>
